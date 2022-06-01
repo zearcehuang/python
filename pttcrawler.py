@@ -1,4 +1,25 @@
 # coding=utf-8
+# https://jasonblog.github.io/note/python/pttcrawler_pttwen_zhang_pa_87f229.html
+# 輸出格式 輸出 .json，格式如下
+# "a_ID": 編號,
+# "b_作者": 作者名,
+# "c_標題": 標題,
+# "d_日期": 發文時間,
+# "e_ip": 發文ip,
+# "f_內文": 內文,
+# "g_推文": {
+#     "推文編號": {
+#         "狀態": 推 or 噓 or →,
+#         "留言內容": 留言內容,
+#         "留言時間": 留言時間,
+#         "留言者": 留言者
+#     }
+# },
+# "h_推文總數": {
+#     "all": 推文數目,
+#     "b": 噓數,
+#     "g": 推數,
+#     "n": →數
 from encodings import utf_8
 import re
 import sys
