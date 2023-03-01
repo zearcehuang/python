@@ -1,3 +1,5 @@
+from pickle import TRUE
+from unicodedata import bidirectional
 from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.core.embedding import Embedding
 from keras.models import Sequential
@@ -11,6 +13,11 @@ import jieba
 from keras.preprocessing.text import Tokenizer
 from keras.utils.data_utils import pad_sequences
 
+import keras
+from keras.layers import Dense, Input, LSTM, Embedding, Dropout, Activation, GRU, Flatten, Bidirectional, GlobalMaxPool1D
+from keras.models import Model, Sequential
+from keras.layers import Convolution1D
+from keras import initializers, regularizers, constraints, optimizers, layers
 
 # 下載資料
 url = "https://raw.githubusercontent.com/SophonPlus/ChineseNlpCorpus/master/datasets/waimai_10k/waimai_10k.csv"
@@ -95,8 +102,9 @@ for content in sentence_test:
 
 # 建立token字典
 # 使用Tokenizer建立大小為3000的字典，接著透過fit_on_texts()方法將訓練的留言資料中，依照文字出現次數排序，而前3000個常出現的單字將會列入token字典中。
+max_features = 3000  # 指定進入當特徵的字有幾個
 
-token = Tokenizer(num_words=3000)
+token = Tokenizer(num_words=max_features)
 token.fit_on_texts(remainderWords2)
 # print('3000字')
 # print(token.word_index)
@@ -121,7 +129,7 @@ x_test = pad_sequences(x_test_seq, maxlen=50)
 
 model = Sequential()
 
-model.add(Embedding(output_dim=128, input_dim=3000, input_length=50))
+model.add(Embedding(output_dim=128, input_dim=max_features, input_length=50))
 model.add(Dropout(0.2))
 
 model.add(Flatten())
@@ -130,6 +138,15 @@ model.add(Dense(units=256, activation='relu'))
 model.add(Dropout(0.2))
 
 model.add(Dense(units=2, activation='sigmoid'))
+# embed_size = 132
+# model = Sequential()
+# model.add(Embedding(max_features, embed_size))
+# model.add(bidirectional(LSTM(50, return_sequences = True)))
+# model.add(GlobalMaxPool1D())
+# model.add(Dense(20, activation="relu",kernel_regularizer=regularizers.l2(0.0001)))
+# model.add(Dropout(0.05))
+# model.add(Dense(1, activation="sigmoid"))
+
 model.summary()
 
 # 開始訓練模型
@@ -137,29 +154,43 @@ model.compile(loss='binary_crossentropy',
               optimizer='adam',
               metrics=['accuracy'])
 
-train_history = model.fit(x_train,
-                          labels_train,
-                          batch_size=100,
-                          epochs=10,
-                          verbose=2,
-                          validation_split=0.2)
+batch_size = 100  # 每批以一百筆資料作為訓練
+epochs = 3  # 迭代三次
+
+# train_history = model.fit(x_train,
+#                           labels_train,
+#                           batch_size=batch_size,
+#                           epochs=epochs,
+#                           verbose=2,
+#                           validation_split=0.2)
+model.fit(x_train,
+          labels_train,
+          batch_size=batch_size,
+          epochs=epochs,
+          verbose=2,
+          validation_split=0.2)
+
+# prediction = model.predict(x_test)
+
 # 情緒分析預測結果
 # 將test測試的資料加入模型評估結果，並取得模型正確率。
-scores = model.evaluate(my_test, test_label, verbose=1)
+scores = model.evaluate(test, labels_test)
 scores[1]
+# loss, acc = model.evaluate(test, labels_test, verbose=1)
+# print('Test loss: %.4f' % loss)
+# print('Test accuracy: %.4f' % acc)
 
 # 透過predict_classes()方法取得test資料的預測結果，並且轉為一維陣列，接著建立一個方法查看預測結果是否正確。
-predict = model.predict_classes(x_test)
+# predict = model.predict_classes(x_test)
 
 
-def display_test_Sentiment(i):
-    print(test[i])
-    print('原始結果:', labels_test[i])
-    print('預測結果:', predict[i])
+# def display_test_Sentiment(i):
+#     print(test[i])
+#     print('原始結果:', labels_test[i])
+#     print('預測結果:', predict[i])
 
 
 # 呼叫display_test_Sentiment()並傳入要查看的資料編號。
-display_test_Sentiment(0)
+# display_test_Sentiment(0)
 
-show_train_history('acc','val_acc')
-
+# show_train_history('acc','val_acc')
