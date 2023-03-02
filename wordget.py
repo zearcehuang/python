@@ -27,14 +27,17 @@ cursor = cnxn.cursor()
 # SQL查詢語句
 query = ("select id,title ,context from ("
          "select a.id,title,context from pttpost_referendum_1 a "
-         "inner join pttpost b on a.source=b.source and a.id=b.Id "
-         "union all "
-         "select a.id,title,context from pttpost_referendum_1 a "
-         "inner join pttpostgossing b on a.source=b.source and a.id=b.Id "
-         "union all "
-         "select convert(varchar,a.id),title,content from dcard.dbo.pttpost_referendum_1 a "
-         "inner join dcard.dbo.post b on a.source=b.forum and a.id=b.Id"
-         ") m "
+         " inner join pttpost b on a.source=b.source and a.id=b.Id "
+         " where not exists (select * from keyword where source=99 and (b.title like '%'+keyname+'%' or b.context like '%'+keyname+'%')) "
+         " union all "
+         " select a.id,title,context from pttpost_referendum_1 a "
+         " inner join pttpostgossing b on a.source=b.source and a.id=b.Id "
+         " where not exists (select * from keyword where source=99 and (b.title like '%'+keyname+'%' or b.context like '%'+keyname+'%')) "
+         " union all "
+         " select convert(varchar,a.id),title,content from dcard.dbo.pttpost_referendum_1 a "
+         " inner join dcard.dbo.post b on a.source=b.forum and a.id=b.Id "
+         " where not exists (select * from keyword where source=99 and (b.title like '%'+keyname+'%' or b.content like '%'+keyname+'%')) "
+         " ) m "
          "where 1=1")
 
 # 讀取資料表
@@ -57,6 +60,94 @@ jieba.analyse.set_stop_words('C:\project\python\stopWord.txt')
 with open('C:\project\python\stopWord.txt', 'r', encoding='utf-8') as f:
     stop_words = f.read().split()
 
+def PrintKeyWord(col1, col2, resultString):
+ # 取出所有關鍵詞
+    print('get all key words')
+    keywords = []
+    for index, row in df.iterrows():
+        for keyword, weight in row[col1]:
+            keywords.append((keyword, weight))
+        for keyword, weight in row[col2]:
+            keywords.append((keyword, weight))
+
+    # 轉換為dataframe
+    print('轉換為dataframe')
+    keywords_df = pd.DataFrame(keywords, columns=['keyword', 'weight'])
+
+    # 合併相同的關鍵詞，計算權重總和
+    keywords_grouped = keywords_df.groupby(
+        ['keyword']).agg({'weight': 'sum'}).reset_index()
+
+    # 按權重從大到小排序
+    print('按權重從大到小排序')
+    keywords_sorted = keywords_grouped.sort_values('weight', ascending=False)
+
+    # 取出前50個關鍵詞
+    print('取出前50個關鍵詞')
+    top_keywords = keywords_sorted.head(50)['keyword'].tolist()
+
+    # 輸出結果
+    print(f'{resultString} result:')
+    print(top_keywords)
+
+def pagerank(graph, weight=None, alpha=0.85, max_iter=100, tol=1e-6, weight_args=None):
+    # 初始化權重
+    if weight is None:
+        weight = uniform_weight
+    # 初始化分數
+    scores = {node: 1.0 / len(graph) for node in graph}
+    # 開始迭代
+    for _ in range(max_iter):
+        # 計算每個節點的分數
+        new_scores = {}
+        for node in graph:
+            new_score = 0.0
+            for neighbor in graph[node]:
+                weight_value = weight(node, neighbor, graph, weight_args)
+                new_score += weight_value * scores[neighbor]
+            new_scores[node] = new_score
+        # 計算調整因子
+        sum_diff = sum(abs(new_scores[node] - scores[node]) for node in graph)
+        if sum_diff < tol:
+            break
+        # 更新分數
+        for node in graph:
+            scores[node] = alpha * new_scores[node] + (1 - alpha) / len(graph)
+    return scores
+
+# 定義權重函數
+def uniform_weight(x, y, graph, weight_args):
+    return 1.0 / len(graph[x])
+
+# 定義 text-rank 分析函數
+def get_keywords_textrank(content):
+    # 使用 jieba 進行斷詞
+    words = jieba.lcut(content)
+    # 去除停用詞和非中文詞
+    words = [word for word in words if word not in stop_words and re.match(
+        '^[\u4e00-\u9fa5]+$', word)]
+
+    # 建立關鍵詞圖
+    graph = {}
+    for i in range(len(words)):
+        if words[i] not in graph:
+            graph[words[i]] = set()
+        for j in range(i+1, len(words)):
+            if words[j] not in graph:
+                graph[words[j]] = set()
+            if j - i > 5:
+                break
+            graph[words[i]].add(words[j])
+            graph[words[j]].add(words[i])
+    # 計算關鍵詞權重
+    scores = pagerank(graph, weight=None, alpha=0.85,
+                      max_iter=100, tol=1e-6, weight_args=None)
+    # 取得前 topK 個權重最大的關鍵詞
+    tr_keywords = []
+    for word, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)[:topK]:
+        tr_keywords.append((word, score))
+    return tr_keywords
+
 # 去除 HTML tag
 print('remove html tag')
 df['context'] = df['context'].apply(
@@ -68,6 +159,17 @@ df['title'] = df['title'].apply(
 print('remove special word')
 df['context'] = df['context'].apply(lambda x: re.sub(r'[^\w\s]', '', x))
 df['title'] = df['title'].apply(lambda x: re.sub(r'[^\w\s]', '', x))
+
+# 去除HTML tag
+print('去除HTML tag')
+df['context'] = df['context'].apply(lambda x: re.sub(r'<[^<]+?>', '', x))
+df['title'] = df['title'].apply(lambda x: re.sub(r'<[^<]+?>', '', x))
+
+# 去除標點符號及數字
+print('去除標點符號及數字')
+df['context'] = df['context'].apply(
+    lambda x: re.sub(r'[^\u4e00-\u9fa5]+', '', x))
+df['title'] = df['title'].apply(lambda x: re.sub(r'[^\u4e00-\u9fa5]+', '', x))
 
 # 去除停用词
 print('remove stop words')
@@ -93,30 +195,12 @@ print('start analyze context tf-idf')
 df['context_keywords'] = df['context_cut'].apply(
     lambda x: jieba.analyse.extract_tags(x, topK=topK, withWeight=withWeight))
 
-# 取出所有關鍵詞
-print('get all key words')
-keywords = []
-for index, row in df.iterrows():
-    for keyword, weight in row['title_keywords']:
-        keywords.append((keyword, weight))
-    for keyword, weight in row['context_keywords']:
-        keywords.append((keyword, weight))
+PrintKeyWord('title_keywords', 'context_keywords','tf-idf')
 
-# 轉換為dataframe
-print('轉換為dataframe')
-keywords_df = pd.DataFrame(keywords, columns=['keyword', 'weight'])
+# 將 text-rank 分析結果加入 DataFrame 中
+print('start analyze context textrank')
+df['tr_content_keywords'] = df['context_cut'].apply(get_keywords_textrank)
+print('start analyze title textrank')
+df['tr_title_keywords'] = df['title_cut'].apply(get_keywords_textrank)
 
-# 合併相同的關鍵詞，計算權重總和
-keywords_grouped = keywords_df.groupby(
-    ['keyword']).agg({'weight': 'sum'}).reset_index()
-
-# 按權重從大到小排序
-print('按權重從大到小排序')
-keywords_sorted = keywords_grouped.sort_values('weight', ascending=False)
-
-# 取出前50個關鍵詞
-print('取出前50個關鍵詞')
-top_keywords = keywords_sorted.head(50)['keyword'].tolist()
-
-# 輸出結果
-print(top_keywords)
+PrintKeyWord('tr_content_keywords', 'tr_title_keywords','text-rank')
