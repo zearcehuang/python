@@ -6,6 +6,7 @@ import pyodbc
 import configparser
 from bs4 import BeautifulSoup
 import re
+import nltk
 
 config = configparser.ConfigParser()
 config.read('config.env')
@@ -148,6 +149,15 @@ def get_keywords_textrank(content):
         tr_keywords.append((word, score))
     return tr_keywords
 
+# 定義處理字串的函式
+def process_text(text):
+    # 使用 jieba 分詞
+    words = jieba.cut(text)
+    # 去除停用詞
+    words = [word for word in words if word not in stop_words]
+    # 回傳字詞列表
+    return words
+
 # 去除 HTML tag
 print('remove html tag')
 df['context'] = df['context'].apply(
@@ -204,3 +214,20 @@ print('start analyze title textrank')
 df['tr_title_keywords'] = df['title_cut'].apply(get_keywords_textrank)
 
 PrintKeyWord('tr_content_keywords', 'tr_title_keywords','text-rank')
+
+print('start analyze title tf')
+# 處理 context 欄位
+corpus_context = [process_text(text) for text in df['context']]
+# 處理 title 欄位
+corpus_title = [process_text(text) for text in df['title']]
+# 合併兩個 corpus
+corpus = corpus_context + corpus_title
+
+# 使用 nltk.FreqDist 計算詞頻
+word_freq = nltk.FreqDist(word for words in corpus for word in words)
+# 取出前 50 筆
+top_words = word_freq.most_common(50)
+
+# 顯示結果
+for word, freq in top_words:
+    print(f"{word}: {freq}")
