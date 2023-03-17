@@ -208,10 +208,14 @@ df['context_keywords'] = df['context_cut'].apply(
 PrintKeyWord('title_keywords', 'context_keywords','tf-idf')
 
 # 將 text-rank 分析結果加入 DataFrame 中
-print('start analyze context textrank')
-df['tr_content_keywords'] = df['context_cut'].apply(get_keywords_textrank)
-print('start analyze title textrank')
-df['tr_title_keywords'] = df['title_cut'].apply(get_keywords_textrank)
+# print('start analyze context textrank')
+# df['tr_content_keywords'] = df['context_cut'].apply(get_keywords_textrank)
+df['tr_content_keywords'] = df['context_cut'].apply(
+    lambda x: jieba.analyse.textrank(x, topK=topK, withWeight=withWeight), allowPOS=('ns', 'n', 'vn', 'v')
+# print('start analyze title textrank')
+# df['tr_title_keywords'] = df['title_cut'].apply(get_keywords_textrank)
+df['tr_title_keywords'] = df['title_cut'].apply(
+    lambda x: jieba.analyse.textrank(x, topK=topK, withWeight=withWeight), allowPOS=('ns', 'n', 'vn', 'v')
 
 PrintKeyWord('tr_content_keywords', 'tr_title_keywords','text-rank')
 
