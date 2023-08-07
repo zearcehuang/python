@@ -1,5 +1,5 @@
 import jieba
-jieba.set_dictionary('./dict.txt')
+jieba.set_dictionary('./dict.big5.txt')
 
 def get_score(article_string):
     with open('NTUSD_positive_unicode.txt', encoding='utf-8', mode='r') as f:
@@ -20,10 +20,8 @@ def get_score(article_string):
         for word in jieba_result:
             if word.strip() != "":
                 if word in positive_words:
-                    print(f'詞彙:{word}, 總分:{score}')
                     score += 1
                 elif word in negative_words:
-                    print(f'詞彙:{word}, 總分:{score}')
                     score -= 1
                 else:
                     pass
